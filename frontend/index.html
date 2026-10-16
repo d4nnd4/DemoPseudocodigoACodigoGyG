@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pseudo2Code</title>
+  <link rel="icon" type="image/png" href="assets/favicon.png" />
+  <link rel="stylesheet" href="styles.css" />
+  <script>
+    try {
+      const t = localStorage.getItem("p2c-theme");
+      if (t) document.documentElement.dataset.theme = t;
+    } catch {}
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="assets/logo-mark.png" alt="" class="brand-logo" />
+      <div class="brand-text">Pseudo<span>2</span>Code <small>demo</small></div>
+    </div>
+
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-view="convert" role="tab">Conversor</button>
+      <button class="tab" data-view="logs" role="tab">Logs</button>
+      <button class="tab" data-view="learn" role="tab">DSA y recursos</button>
+      <button class="tab" data-view="settings" role="tab">Configuración</button>
+      <button class="tab soon" disabled title="Módulo futuro: ver docs/FUTURO_PROFESOR.md">
+        Profesor <span class="badge">próximamente</span>
+      </button>
+    </nav>
+
+    <div class="top-right">
+      <div id="status" class="status busy" title="Estado del modelo de IA">
+        <span class="dot"></span><span class="status-text">Conectando…</span>
+      </div>
+      <button id="theme-toggle" class="icon-btn ghost" title="Cambiar tema claro / oscuro" aria-label="Cambiar tema"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg></button>
+    </div>
+  </header>
+
+  <div id="model-banner" class="banner" hidden>
+    <span class="banner-icon">⚠</span>
+    <div class="banner-body">
+      <strong id="banner-title"></strong>
+      <span id="banner-detail"></span>
+      <progress id="banner-progress" max="100" value="0" hidden></progress>
+    </div>
+    <button id="banner-retry" class="small">Reintentar ahora</button>
+  </div>
+
+  <main>
+    <section id="view-convert" class="view layout">
+      <aside class="panel history">
+        <div class="panel-head">
+          <h2>Historial</h2>
+          <button id="refresh" class="icon-btn" title="Recargar">⟳</button>
+        </div>
+        <ul id="history-list"></ul>
+      </aside>
+
+      <section class="panel input">
+        <div class="panel-head">
+          <div class="segmented" role="radiogroup" aria-label="Dirección de la conversión">
+            <button data-direction="to_code" class="active" role="radio">Pseudocódigo → Código</button>
+            <button data-direction="to_pseudo" role="radio">Código → Pseudocódigo</button>
+          </div>
+          <button id="example" class="link-btn">Cargar ejemplo</button>
+        </div>
+        <div class="editor-title"><span id="input-title">Pseudocódigo</span></div>
+        <div id="input-editor" class="editor"></div>
+        <div id="lang-note" class="lang-note" hidden></div>
+        <div class="controls">
+          <input id="name" type="text" placeholder="Nombre (opcional)" maxlength="80" />
+          <label class="select-wrap">
+            <span id="language-label">Destino</span>
+            <select id="language"></select>
+          </label>
+          <button id="convert" class="primary" disabled>Preparando…</button>
+        </div>
+      </section>
+
+      <section class="panel output">
+        <div class="panel-head">
+          <h2 id="output-title">Código generado</h2>
+          <div class="actions">
+            <button id="swap" disabled title="Usar el resultado como nueva entrada e invertir la dirección">⇄ Invertir</button>
+            <button id="copy" disabled>Copiar</button>
+            <button id="save" disabled title="Ctrl/Cmd + S">Guardar</button>
+            <button id="download" disabled>Descargar</button>
+          </div>
+        </div>
+        <div id="output-editor" class="editor"></div>
+        <div class="statusbar">
+          <span id="saved-path" class="path"></span>
+          <span id="run-info"></span>
+        </div>
+      </section>
+    </section>
+
+    <section id="view-logs" class="view page" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Trazabilidad de conversiones</h1>
+          <p class="muted">Cada conversión, edición y borrado queda en <code>logs/conversions.jsonl</code>
+            (el log técnico, en <code>logs/app.log</code>).</p>
+        </div>
+        <div class="toolbar">
+          <select id="log-event">
+            <option value="">Todos los eventos</option>
+            <option value="convert">Conversiones</option>
+            <option value="edit">Ediciones</option>
+            <option value="delete">Borrados</option>
+          </select>
+          <select id="log-status">
+            <option value="">Todos los estados</option>
+            <option value="ok">ok</option>
+            <option value="error">error</option>
+            <option value="cancelled">cancelled</option>
+          </select>
+          <button id="log-refresh">⟳ Actualizar</button>
+          <a id="log-download" class="button" href="/api/logs/download">Descargar .jsonl</a>
+        </div>
+      </div>
+      <div id="log-stats" class="stats"></div>
+      <div class="table-wrap">
+        <table class="logs">
+          <thead>
+            <tr>
+              <th>Fecha</th><th>Evento</th><th>Estado</th><th>Dirección</th><th>Lenguaje</th>
+              <th>Modelo</th><th class="num">Cola</th><th class="num">1.er token</th><th class="num">Total</th>
+              <th class="num">Entrada / salida</th><th>Archivo · request id</th>
+            </tr>
+          </thead>
+          <tbody id="log-rows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="view-learn" class="view page" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Algoritmos y estructuras de datos</h1>
+          <p class="muted">Los patrones que más resuelven problemas reales y de entrevista. Cada uno trae
+            su pseudocódigo: <strong>Convertir</strong> lo lleva al conversor en el lenguaje que elijas.</p>
+        </div>
+        <div class="toolbar">
+          <input id="dsa-search" type="search" placeholder="Buscar…" />
+        </div>
+      </div>
+      <div id="dsa-filters" class="chips"></div>
+      <div id="dsa-grid" class="cards"></div>
+
+      <h2 class="section-title">Documentación oficial</h2>
+      <div id="docs-grid" class="cards docs"></div>
+
+      <h2 class="section-title">Para practicar y profundizar</h2>
+      <ul id="extra-resources" class="resource-list"></ul>
+    </section>
+
+    <section id="view-settings" class="view page" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Configuración</h1>
+          <p class="muted">Valores efectivos del backend. Se cambian en <code>.env</code> y se aplican con
+            <code>docker compose up -d</code>.</p>
+        </div>
+      </div>
+
+      <div class="settings-grid">
+        <article class="card">
+          <h3>Modelo activo</h3>
+          <dl id="cfg-model" class="kv"></dl>
+          <button id="cfg-retry">Revisar / reintentar ahora</button>
+        </article>
+
+        <article class="card">
+          <h3>Rutas de salvado</h3>
+          <dl id="cfg-paths" class="kv"></dl>
+          <p class="muted small">Vista previa para «Suma de pares» en Go:</p>
+          <pre id="cfg-preview" class="snippet"></pre>
+        </article>
+
+        <article class="card wide">
+          <h3>Usar otro modelo</h3>
+          <p>El backend habla con la IA a través de <code>backend/app/providers/</code>. Elige la opción que
+            encaje con tu modelo:</p>
+          <div class="howto">
+            <div>
+              <h4>1 · Otro modelo de Ollama</h4>
+              <pre class="snippet"># .env
+OLLAMA_MODEL=qwen2.5-coder:7b
+OLLAMA_MEM_LIMIT=7g</pre>
+              <p class="small muted">Se descarga solo al arrancar (con reintentos).</p>
+            </div>
+            <div>
+              <h4>2 · Servidor compatible con OpenAI</h4>
+              <pre class="snippet">LLM_PROVIDER=openai
+OPENAI_BASE_URL=http://gpu-box:8000/v1
+OPENAI_API_KEY=x
+OPENAI_MODEL=Qwen/Qwen2.5-Coder-7B-Instruct</pre>
+              <p class="small muted">vLLM, LM Studio, llama.cpp, TGI, Groq, OpenRouter…</p>
+            </div>
+            <div>
+              <h4>3 · Anthropic (Claude)</h4>
+              <pre class="snippet">LLM_PROVIDER=anthropic
+ANTHROPIC_API_KEY=...
+ANTHROPIC_MODEL=...</pre>
+            </div>
+            <div>
+              <h4>4 · API propia (espacio reservado)</h4>
+              <pre class="snippet">LLM_PROVIDER=custom
+CUSTOM_BASE_URL=http://mi-servidor:9000
+CUSTOM_MODEL=mi-modelo</pre>
+              <p class="small muted">Implementa <code>stream()</code> en <code>providers/custom.py</code>.</p>
+            </div>
+          </div>
+          <p class="small">Guía completa: <a href="docs/OTRO_MODELO.md" target="_blank">docs/OTRO_MODELO.md</a></p>
+        </article>
+
+        <article class="card">
+          <h3>IBM i / AS400</h3>
+          <p>De momento solo está disponible <strong>RPGLE free-format</strong>. CL, COBOL/400, DDS y RPG de
+            formato fijo quedan fuera: los modelos abiertos casi no tienen datos de entrenamiento de AS400.</p>
+          <p class="small">Cómo entrenar un modelo para AS400:
+            <a href="docs/AS400_ENTRENAMIENTO.md" target="_blank">docs/AS400_ENTRENAMIENTO.md</a></p>
+        </article>
+
+        <article class="card">
+          <h3>Próximos pasos</h3>
+          <ul class="plain">
+            <li><a href="docs/ESCALABILIDAD.md" target="_blank">Escalar a ~30 usuarios simultáneos</a> — arquitectura y hardware.</li>
+            <li><a href="docs/FUTURO_PROFESOR.md" target="_blank">Módulo futuro: Profesor de código</a> — diseño, sin implementar.</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="vendor/monaco/vs/loader.js"></script>
+  <script src="monaco-langs.js"></script>
+  <script src="resources.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

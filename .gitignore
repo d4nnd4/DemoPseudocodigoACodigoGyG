@@ -1,0 +1,8 @@
+.env
+__pycache__/
+.pytest_cache/
+generated/*
+!generated/.gitkeep
+frontend/vendor/
+logs/*
+!logs/.gitkeep

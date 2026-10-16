@@ -1,0 +1,82 @@
+name: pseudo2code
+
+# Ajustes compartidos del proveedor de IA (ver .env.example)
+x-llm-env: &llm-env
+  LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+  LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.2}
+  LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-1536}
+  OLLAMA_URL: http://ollama:11434
+  OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5-coder:1.5b}
+  OLLAMA_NUM_CTX: ${OLLAMA_NUM_CTX:-4096}
+  OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-15m}
+  OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENAI_MODEL: ${OPENAI_MODEL:-}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-}
+  CUSTOM_BASE_URL: ${CUSTOM_BASE_URL:-}
+  CUSTOM_API_KEY: ${CUSTOM_API_KEY:-}
+  CUSTOM_MODEL: ${CUSTOM_MODEL:-}
+  OLLAMA_RETRY_MIN_SECONDS: ${OLLAMA_RETRY_MIN_SECONDS:-5}
+  OLLAMA_RETRY_MAX_SECONDS: ${OLLAMA_RETRY_MAX_SECONDS:-60}
+  OLLAMA_PULL_STALL_SECONDS: ${OLLAMA_PULL_STALL_SECONDS:-120}
+  OLLAMA_WATCHDOG_SECONDS: ${OLLAMA_WATCHDOG_SECONDS:-60}
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama-models:/root/.ollama
+    environment:
+      OLLAMA_NUM_PARALLEL: 1          # una petición a la vez -> no reserva memoria para varias
+      OLLAMA_MAX_LOADED_MODELS: 1     # nunca dos modelos en RAM
+      OLLAMA_FLASH_ATTENTION: 1       # atención más eficiente en memoria
+      OLLAMA_KV_CACHE_TYPE: q8_0      # caché de contexto cuantizada (~50 % menos RAM)
+    deploy:
+      resources:
+        limits:
+          memory: ${OLLAMA_MEM_LIMIT:-3g}
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    # Sin depends_on: el backend supervisa a Ollama por su cuenta (espera, descarga,
+    # verifica, precalienta y reintenta), informando el estado en /api/health.
+    environment:
+      <<: *llm-env
+      GENERATED_DIR: /data/generated
+      LOGS_DIR: /data/logs
+      # Rutas configurables (ver .env.example). Vacías = valor por defecto del backend.
+      CODE_PATH_TEMPLATE: ${CODE_PATH_TEMPLATE:-}
+      PSEUDO_PATH_TEMPLATE: ${PSEUDO_PATH_TEMPLATE:-}
+      PSEUDO_EXTENSION: ${PSEUDO_EXTENSION:-txt}
+      GENERATED_HOST_DIR: ${GENERATED_HOST_DIR:-./generated}
+      LOGS_HOST_DIR: ${LOGS_HOST_DIR:-./logs}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - ${GENERATED_HOST_DIR:-./generated}:/data/generated
+      - ${LOGS_HOST_DIR:-./logs}:/data/logs
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256m
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    depends_on:
+      - backend
+    ports:
+      - "${APP_PORT:-8080}:80"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 64m
+    restart: unless-stopped
+
+volumes:
+  ollama-models:
